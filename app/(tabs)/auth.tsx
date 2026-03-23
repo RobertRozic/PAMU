@@ -5,137 +5,264 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
+  Alert,
+  ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { auth } from "@/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth, firestore } from "../../firebase";
+
+type Profile = {
+  name: string;
+  age: string;
+  bio: string;
+};
+
+const getFirestoreProfileErrorMessage = (
+    error: { code?: string; message?: string },
+    operation: "load" | "save"
+) => {
+  if (error.code === "permission-denied") {
+    return `Cannot ${operation} profile because Firestore denied access. Update your Firebase rules to allow signed-in users to read and write users/{uid}.`;
+  }
+
+  return error.message ?? `Failed to ${operation} profile.`;
+};
 
 export default function AuthScreen() {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string>("");
   const [loggedIn, setLoggedIn] = useState<boolean>(false);
+
+  const [profile, setProfile] = useState<Profile>({
+    name: "",
+    age: "",
+    bio: "",
+  });
+
+  const emptyProfile: Profile = {
+    name: "",
+    age: "",
+    bio: "",
+  };
+
+  const loadProfile = async (userId: string) => {
+    const docRef = doc(firestore, "users", userId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return docSnap.data() as Profile;
+    }
+
+    await setDoc(doc(firestore, "users", userId), emptyProfile);
+    return emptyProfile;
+  };
 
   const handleLogin = async () => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+      );
+
+      setErrorMsg("");
       setLoggedIn(true);
-      setErrorMessage("");
+
+      const userId = userCredential.user.uid;
+      try {
+        const loadedProfile = await loadProfile(userId);
+        setProfile(loadedProfile);
+      } catch (error: any) {
+        setProfile(emptyProfile);
+        setErrorMsg(getFirestoreProfileErrorMessage(error, "load"));
+      }
     } catch (error: any) {
-      setErrorMessage(error.message);
+      setLoggedIn(false);
+      setErrorMsg(error.message ?? "Failed to sign in.");
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    const userId = auth.currentUser?.uid;
+
+    if (!userId) {
+      return;
+    }
+
+    try {
+      await setDoc(doc(firestore, "users", userId), profile);
+      setErrorMsg("");
+      Alert.alert("Uspjeh", "Podaci su spremljeni u Firestore.");
+    } catch (error: any) {
+      const message = getFirestoreProfileErrorMessage(error, "save");
+      setErrorMsg(message);
+      Alert.alert("Greška", message);
     }
   };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setLoggedIn(false);
-      setErrorMessage("");
-    } catch (error: any) {
-      setErrorMessage(error.message);
-    }
+    await signOut(auth);
+    setLoggedIn(false);
+    setErrorMsg("");
+    setProfile(emptyProfile);
   };
 
   if (loggedIn) {
     return (
-        <View style={styles.screen}>
+        <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.card}>
-            <Text style={styles.title}>Dobrodošli u aplikaciju!</Text>
-            <Pressable style={styles.button} onPress={handleLogout}>
-              <Text style={styles.buttonText}>Odjavi se</Text>
+            <Ionicons name="person-circle-outline" size={72} color="#1f6feb" />
+            <Text style={styles.title}>Moj profil</Text>
+
+            <TextInput
+                placeholder="Ime"
+                value={profile.name}
+                onChangeText={(text) => setProfile({ ...profile, name: text })}
+                style={styles.input}
+            />
+
+            <TextInput
+                placeholder="Dob"
+                value={profile.age}
+                onChangeText={(text) => setProfile({ ...profile, age: text })}
+                keyboardType="numeric"
+                style={styles.input}
+            />
+
+            <TextInput
+                placeholder="O meni"
+                value={profile.bio}
+                onChangeText={(text) => setProfile({ ...profile, bio: text })}
+                multiline
+                style={[styles.input, styles.textArea]}
+            />
+
+            {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
+
+            <Pressable style={styles.primaryButton} onPress={handleSaveProfile}>
+              <Text style={styles.primaryButtonText}>Spremi profil</Text>
+            </Pressable>
+
+            <Pressable style={styles.secondaryButton} onPress={handleLogout}>
+              <Text style={styles.secondaryButtonText}>Odjavi se</Text>
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
     );
+
   }
 
   return (
       <View style={styles.screen}>
         <View style={styles.card}>
-          <Text style={styles.title}>Login</Text>
+          <Ionicons name="person-circle-outline" size={72} color="#1f6feb" />
+          <Text style={styles.title}>Prijava</Text>
+
           <TextInput
-              placeholder="Email"
+              placeholder="Unesite email adresu"
               value={email}
               onChangeText={setEmail}
-              style={styles.input}
               autoCapitalize="none"
               keyboardType="email-address"
-              placeholderTextColor="#6B7280"
+              style={styles.input}
           />
+
           <TextInput
-              placeholder="Lozinka"
+              placeholder="Unesite lozinku"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
               style={styles.input}
-              placeholderTextColor="#6B7280"
           />
-          {errorMessage ? (
-              <Text style={styles.error}>{errorMessage}</Text>
-          ) : null}
-          <Pressable style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Prijava</Text>
+
+          {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
+
+          <Pressable style={styles.primaryButton} onPress={handleLogin}>
+            <Text style={styles.primaryButtonText}>Prijava</Text>
           </Pressable>
         </View>
       </View>
+
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    backgroundColor: "#eef3f8",
+  },
+  container: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#eef3f8",
   },
   card: {
     width: "100%",
-    maxWidth: 380,
-    backgroundColor: "#FFFFFF",
+    maxWidth: 420,
+    backgroundColor: "#ffffff",
     borderRadius: 18,
-    padding: 24,
+    padding: 22,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "700",
-    color: "#111827",
-    marginTop: 10,
+    marginTop: 8,
     marginBottom: 18,
+    color: "#111827",
   },
   input: {
     width: "100%",
-    height: 48,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#FFFFFF",
+    borderColor: "#d0d7de",
     borderRadius: 12,
-    marginBottom: 12,
     paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
     color: "#111827",
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: "top",
   },
   error: {
     width: "100%",
-    color: "#DC2626",
+    color: "#b42318",
     marginBottom: 12,
-    textAlign: "left",
   },
-  button: {
+  primaryButton: {
     width: "100%",
-    backgroundColor: "#2563EB",
-    paddingVertical: 14,
+    backgroundColor: "#1f6feb",
+    paddingVertical: 13,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 4,
   },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
+  primaryButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  secondaryButton: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 10,
+    backgroundColor: "#ffffff",
+  },
+  secondaryButtonText: {
+    color: "#111827",
     fontWeight: "600",
   },
 });
