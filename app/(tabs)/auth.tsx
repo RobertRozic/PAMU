@@ -265,4 +265,8 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "600",
   },
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> origin/main
