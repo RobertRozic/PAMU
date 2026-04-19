@@ -7,11 +7,7 @@ export default function AuthInput(props: AuthInputProps) {
     <TextInput
       {...props}
       placeholderTextColor={props.placeholderTextColor ?? "#6B7280"}
-      style={[
-        styles.input,
-        props.multiline && styles.textArea,
-        props.style,
-      ]}
+      style={[styles.input, props.multiline && styles.textArea, props.style]}
     />
   );
 }
