@@ -9,7 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Aplikacija koristi lokaciju za prikaz GPS koordinata u hardware vježbi.",
+        "NSCameraUsageDescription": "Aplikacija koristi kameru za testiranje hardware funkcija.",
+        "NSPhotoLibraryUsageDescription": "Aplikacija koristi galeriju za odabir slike."
+      }
     },
     "android": {
       "adaptiveIcon": {

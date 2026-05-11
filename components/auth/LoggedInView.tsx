@@ -55,7 +55,7 @@ export default function LoggedInView() {
         if (!user) return;
 
         try {
-            await setDoc(doc(firestore, "users", user.uid), profile);
+            await setDoc(doc(firestore, "users", user.uid), profile, {merge: true});
             setErrorMessage("");
             Alert.alert("Uspjeh", "Profil je spremljen.");
         } catch (error: any) {
